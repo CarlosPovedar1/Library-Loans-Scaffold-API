@@ -36,7 +36,10 @@ docker compose up -d
 # 3) Dependencias
 npm install
 
-# 4) Arrancar la app en modo desarrollo
+# 4) Build
+npm run build
+
+# 5) Arrancar la app en modo desarrollo
 npm run start:dev
 ```
 
