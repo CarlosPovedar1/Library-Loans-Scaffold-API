@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -16,6 +17,7 @@ import { Roles } from '@common/decorators/roles.decorator';
 import { RolesGuard } from '@common/guards/roles.guard';
 import { UserRole } from '@modules/auth/entities/user.entity';
 import { CreateItemDto } from './dto/create-item.dto';
+import { QueryItemsDto } from './dto/query-items.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { ItemsService } from './items.service';
 
@@ -33,20 +35,20 @@ export class ItemsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all library items' })
-  findAll() {
-    return this.itemsService.findAll();
+  @ApiOperation({ summary: 'List items with optional filters (all roles)' })
+  findAll(@Query() query: QueryItemsDto) {
+    return this.itemsService.findAll(query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a library item by id' })
+  @ApiOperation({ summary: 'Get an item by id (all roles)' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.itemsService.findOne(id);
   }
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.LIBRARIAN)
-  @ApiOperation({ summary: 'Update a library item (admin, librarian)' })
+  @ApiOperation({ summary: 'Update an item (admin, librarian)' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateItemDto) {
     return this.itemsService.update(id, dto);
   }
@@ -54,7 +56,7 @@ export class ItemsController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Delete a library item (admin only)' })
+  @ApiOperation({ summary: 'Deactivate an item — sets status to inactive (admin only)' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.itemsService.remove(id);
   }

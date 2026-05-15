@@ -12,6 +12,14 @@ export enum ItemType {
   EQUIPMENT = 'equipment',
 }
 
+export enum ItemStatus {
+  AVAILABLE = 'available',
+  BORROWED = 'borrowed',
+  RESERVED = 'reserved',
+  LOST = 'lost',
+  INACTIVE = 'inactive',
+}
+
 @Entity('items')
 export class Item {
   @PrimaryGeneratedColumn('uuid')
@@ -26,8 +34,8 @@ export class Item {
   @Column({ type: 'enum', enum: ItemType })
   type: ItemType;
 
-  @Column({ default: true })
-  isAvailable: boolean;
+  @Column({ type: 'enum', enum: ItemStatus, default: ItemStatus.AVAILABLE })
+  status: ItemStatus;
 
   @CreateDateColumn()
   createdAt: Date;

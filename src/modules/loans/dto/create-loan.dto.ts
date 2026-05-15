@@ -8,7 +8,7 @@ export class CreateLoanDto {
 
   @ApiPropertyOptional({
     example: 'b4c5d6e7-f809-1234-bcde-f12345678901',
-    description: 'Member to loan to — admin/librarian only; ignored for members',
+    description: 'Target member ID. Admin/librarian only — ignored when caller is a member.',
   })
   @IsOptional()
   @IsUUID()

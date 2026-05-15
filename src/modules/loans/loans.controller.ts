@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -15,6 +16,7 @@ import { RolesGuard } from '@common/guards/roles.guard';
 import { UserRole } from '@modules/auth/entities/user.entity';
 import { AuthenticatedUser } from '@modules/auth/strategies/jwt.strategy';
 import { CreateLoanDto } from './dto/create-loan.dto';
+import { QueryLoansDto } from './dto/query-loans.dto';
 import { LoansService } from './loans.service';
 
 @ApiTags('loans')
@@ -24,46 +26,33 @@ export class LoansController {
   constructor(private readonly loansService: LoansService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Borrow a library item' })
+  @ApiOperation({ summary: 'Create a loan. Members borrow for themselves; admin/librarian can specify memberId.' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateLoanDto) {
     return this.loansService.create(user, dto);
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.LIBRARIAN)
-  @ApiOperation({ summary: 'List all loans (admin, librarian)' })
-  findAll() {
-    return this.loansService.findAll();
-  }
-
-  @Get('my')
-  @ApiOperation({ summary: 'List loans for the current authenticated user' })
-  findMine(@CurrentUser() user: AuthenticatedUser) {
-    return this.loansService.findByUser(user.id);
-  }
-
-  @Get('overdue')
-  @Roles(UserRole.ADMIN, UserRole.LIBRARIAN)
-  @ApiOperation({ summary: 'List all overdue active loans (admin, librarian)' })
-  findOverdue() {
-    return this.loansService.findOverdue();
+  @ApiOperation({ summary: 'List loans. Members see only their own. Supports filters: status, overdue, memberId, itemId.' })
+  findAll(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryLoansDto) {
+    return this.loansService.findAll(user, query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a loan by id' })
+  @ApiOperation({ summary: 'Get a loan by id. Members can only view their own.' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.loansService.findOne(id, user);
   }
 
   @Patch(':id/return')
-  @ApiOperation({ summary: 'Return a borrowed item' })
-  returnLoan(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.loansService.returnLoan(id, user);
+  @Roles(UserRole.ADMIN, UserRole.LIBRARIAN)
+  @ApiOperation({ summary: 'Return a borrowed item and calculate fine (admin, librarian only)' })
+  returnLoan(@Param('id', ParseUUIDPipe) id: string) {
+    return this.loansService.returnLoan(id);
   }
 
   @Patch(':id/lost')
   @Roles(UserRole.ADMIN, UserRole.LIBRARIAN)
-  @ApiOperation({ summary: 'Mark a loan item as lost (admin, librarian)' })
+  @ApiOperation({ summary: 'Mark a loan as lost — item also becomes lost (admin, librarian only)' })
   markAsLost(@Param('id', ParseUUIDPipe) id: string) {
     return this.loansService.markAsLost(id);
   }

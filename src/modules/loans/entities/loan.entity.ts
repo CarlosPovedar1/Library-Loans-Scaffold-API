@@ -13,7 +13,6 @@ import { User } from '@modules/auth/entities/user.entity';
 export enum LoanStatus {
   ACTIVE = 'active',
   RETURNED = 'returned',
-  OVERDUE = 'overdue',
   LOST = 'lost',
 }
 
@@ -48,7 +47,16 @@ export class Loan {
   @Column({ type: 'enum', enum: LoanStatus, default: LoanStatus.ACTIVE })
   status: LoanStatus;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value ?? '0'),
+    },
+  })
   fineAmount: number;
 
   @CreateDateColumn()
