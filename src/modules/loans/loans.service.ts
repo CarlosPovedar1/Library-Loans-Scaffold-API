@@ -1,12 +1,14 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Item, ItemStatus, ItemType } from '@modules/items/entities/item.entity';
+import { Item, ItemStatus } from '@modules/items/entities/item.entity';
 import { User, UserRole } from '@modules/auth/entities/user.entity';
 import { AuthenticatedUser } from '@modules/auth/strategies/jwt.strategy';
 import { Reservation, ReservationStatus } from '@modules/reservations/entities/reservation.entity';
@@ -14,19 +16,6 @@ import { CreateLoanDto } from './dto/create-loan.dto';
 import { QueryLoansDto } from './dto/query-loans.dto';
 import { Loan, LoanStatus } from './entities/loan.entity';
 
-const DUE_DAYS: Record<ItemType, number> = {
-  [ItemType.BOOK]: 14,
-  [ItemType.MAGAZINE]: 7,
-  [ItemType.EQUIPMENT]: 3,
-};
-
-const FINE_RATE_COP: Record<ItemType, number> = {
-  [ItemType.BOOK]: 1000,
-  [ItemType.MAGAZINE]: 500,
-  [ItemType.EQUIPMENT]: 3000,
-};
-
-const MAX_ACTIVE_LOANS = 3;
 const RESERVATION_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 @Injectable()
@@ -40,6 +29,7 @@ export class LoansService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(requestingUser: AuthenticatedUser, dto: CreateLoanDto): Promise<Loan> {
@@ -48,24 +38,27 @@ export class LoansService {
         ? dto.memberId
         : requestingUser.id;
 
-    // Validate member exists and has role 'member'
     const member = await this.userRepository.findOne({ where: { id: memberId } });
     if (!member) throw new NotFoundException(`User ${memberId} not found`);
     if (member.role !== UserRole.MEMBER) {
       throw new BadRequestException('Only users with role "member" can borrow items');
     }
 
-    // Check active loans limit
+    const dueAt = new Date(dto.dueAt);
+    if (dueAt <= new Date()) {
+      throw new BadRequestException('dueAt must be a future datetime');
+    }
+
+    const maxActive = this.configService.get<number>('loans.maxActivePerUser') ?? 3;
     const activeCount = await this.loanRepository.count({
       where: { memberId, status: LoanStatus.ACTIVE },
     });
-    if (activeCount >= MAX_ACTIVE_LOANS) {
-      throw new BadRequestException(
-        `Member already has ${MAX_ACTIVE_LOANS} active loans — must return one before borrowing`,
+    if (activeCount >= maxActive) {
+      throw new ConflictException(
+        `Member already has ${maxActive} active loans — must return one before borrowing`,
       );
     }
 
-    // Load the item
     const item = await this.itemRepository.findOne({ where: { id: dto.itemId } });
     if (!item) throw new NotFoundException(`Item ${dto.itemId} not found`);
 
@@ -73,11 +66,10 @@ export class LoansService {
       throw new BadRequestException(`Item cannot be borrowed (status: ${item.status})`);
     }
     if (item.status === ItemStatus.BORROWED) {
-      throw new BadRequestException('Item is already borrowed');
+      throw new ConflictException('Item is already borrowed');
     }
 
     if (item.status === ItemStatus.AVAILABLE) {
-      // Ensure no FIFO queue exists (no one should be skipped)
       const queued = await this.reservationRepository.findOne({
         where: [
           { itemId: dto.itemId, status: ReservationStatus.PENDING },
@@ -92,7 +84,6 @@ export class LoansService {
     }
 
     if (item.status === ItemStatus.RESERVED) {
-      // A READY reservation must exist for this exact member
       const readyReservation = await this.reservationRepository.findOne({
         where: { itemId: dto.itemId, status: ReservationStatus.READY },
       });
@@ -104,22 +95,17 @@ export class LoansService {
         throw new ForbiddenException('Item is currently reserved for a different member');
       }
       if (readyReservation.expiresAt && new Date() > readyReservation.expiresAt) {
-        // Expire this reservation and activate next
         readyReservation.status = ReservationStatus.EXPIRED;
+        readyReservation.expiredAt = new Date();
         await this.reservationRepository.save(readyReservation);
         await this.activateNextReservation(item);
         throw new BadRequestException('Your reservation window has expired');
       }
 
-      // Consume the reservation
-      readyReservation.status = ReservationStatus.FULFILLED;
+      readyReservation.status = ReservationStatus.COMPLETED;
+      readyReservation.completedAt = new Date();
       await this.reservationRepository.save(readyReservation);
     }
-
-    // Create the loan
-    const now = new Date();
-    const dueAt = new Date(now);
-    dueAt.setDate(dueAt.getDate() + DUE_DAYS[item.type]);
 
     item.status = ItemStatus.BORROWED;
     await this.itemRepository.save(item);
@@ -127,7 +113,7 @@ export class LoansService {
     const loan = this.loanRepository.create({
       memberId,
       itemId: dto.itemId,
-      loanedAt: now,
+      loanedAt: new Date(),
       dueAt,
       status: LoanStatus.ACTIVE,
       fineAmount: 0,
@@ -141,7 +127,6 @@ export class LoansService {
       .leftJoinAndSelect('loan.member', 'member')
       .leftJoinAndSelect('loan.item', 'item');
 
-    // Members only see their own loans
     if (requestingUser.role === UserRole.MEMBER) {
       qb.andWhere('loan.memberId = :memberId', { memberId: requestingUser.id });
     } else if (query.memberId) {
@@ -149,7 +134,6 @@ export class LoansService {
     }
 
     if (query.overdue) {
-      // Overdue = active loans past their due date
       qb.andWhere('loan.status = :status', { status: LoanStatus.ACTIVE });
       qb.andWhere('loan.dueAt < :now', { now: new Date() });
     } else if (query.status) {
@@ -193,7 +177,8 @@ export class LoansService {
       const daysLate = Math.ceil(
         (now.getTime() - new Date(loan.dueAt).getTime()) / (1000 * 60 * 60 * 24),
       );
-      loan.fineAmount = daysLate * FINE_RATE_COP[loan.item.type];
+      const dailyFineRate = this.configService.get<number>('loans.dailyFineRate') ?? 0.5;
+      loan.fineAmount = daysLate * dailyFineRate;
     } else {
       loan.fineAmount = 0;
     }

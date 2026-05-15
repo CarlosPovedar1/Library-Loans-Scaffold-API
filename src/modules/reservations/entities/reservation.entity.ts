@@ -13,7 +13,7 @@ import { User } from '@modules/auth/entities/user.entity';
 export enum ReservationStatus {
   PENDING = 'pending',
   READY = 'ready',
-  FULFILLED = 'fulfilled',
+  COMPLETED = 'completed',
   CANCELLED = 'cancelled',
   EXPIRED = 'expired',
 }
@@ -40,13 +40,20 @@ export class Reservation {
   @Column({ type: 'enum', enum: ReservationStatus, default: ReservationStatus.PENDING })
   status: ReservationStatus;
 
-  /** Set when status transitions to READY — timestamp of activation. */
   @Column({ type: 'timestamp', nullable: true, default: null })
   readyAt: Date | null;
 
-  /** Set when status transitions to READY — member has 48 h from this point to take the loan. */
   @Column({ type: 'timestamp', nullable: true, default: null })
   expiresAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, default: null })
+  completedAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, default: null })
+  cancelledAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, default: null })
+  expiredAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

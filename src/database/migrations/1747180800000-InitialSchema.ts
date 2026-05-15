@@ -25,6 +25,31 @@ export class InitialSchema1747180800000 implements MigrationInterface {
       )
     `);
 
+    // ── refresh_tokens ─────────────────────────────────────────────────────
+    await queryRunner.query(`
+      CREATE TABLE "refresh_tokens" (
+        "id"         uuid              NOT NULL DEFAULT uuid_generate_v4(),
+        "user_id"    uuid              NOT NULL,
+        "jti"        character varying NOT NULL,
+        "expiresAt"  TIMESTAMP         NOT NULL,
+        "revokedAt"  TIMESTAMP         DEFAULT NULL,
+        "createdAt"  TIMESTAMP         NOT NULL DEFAULT now(),
+        CONSTRAINT "UQ_refresh_tokens_jti" UNIQUE ("jti"),
+        CONSTRAINT "PK_refresh_tokens"     PRIMARY KEY ("id")
+      )
+    `);
+
+    await queryRunner.query(`
+      ALTER TABLE "refresh_tokens"
+        ADD CONSTRAINT "FK_refresh_tokens_user"
+        FOREIGN KEY ("user_id") REFERENCES "users"("id")
+        ON DELETE CASCADE ON UPDATE NO ACTION
+    `);
+
+    await queryRunner.query(
+      `CREATE INDEX "IDX_refresh_tokens_user_id" ON "refresh_tokens" ("user_id")`,
+    );
+
     // ── items ──────────────────────────────────────────────────────────────
     await queryRunner.query(
       `CREATE TYPE "public"."items_type_enum" AS ENUM('book', 'magazine', 'equipment')`,
@@ -87,19 +112,22 @@ export class InitialSchema1747180800000 implements MigrationInterface {
 
     // ── reservations ───────────────────────────────────────────────────────
     await queryRunner.query(
-      `CREATE TYPE "public"."reservations_status_enum" AS ENUM('pending', 'ready', 'fulfilled', 'cancelled', 'expired')`,
+      `CREATE TYPE "public"."reservations_status_enum" AS ENUM('pending', 'ready', 'completed', 'cancelled', 'expired')`,
     );
 
     await queryRunner.query(`
       CREATE TABLE "reservations" (
-        "id"         uuid                                  NOT NULL DEFAULT uuid_generate_v4(),
-        "member_id"  uuid                                  NOT NULL,
-        "item_id"    uuid                                  NOT NULL,
-        "status"     "public"."reservations_status_enum"  NOT NULL DEFAULT 'pending',
-        "readyAt"    TIMESTAMP                             DEFAULT NULL,
-        "expiresAt"  TIMESTAMP                             DEFAULT NULL,
-        "createdAt"  TIMESTAMP                             NOT NULL DEFAULT now(),
-        "updatedAt"  TIMESTAMP                             NOT NULL DEFAULT now(),
+        "id"          uuid                                  NOT NULL DEFAULT uuid_generate_v4(),
+        "member_id"   uuid                                  NOT NULL,
+        "item_id"     uuid                                  NOT NULL,
+        "status"      "public"."reservations_status_enum"  NOT NULL DEFAULT 'pending',
+        "readyAt"     TIMESTAMP                             DEFAULT NULL,
+        "expiresAt"   TIMESTAMP                             DEFAULT NULL,
+        "completedAt" TIMESTAMP                             DEFAULT NULL,
+        "cancelledAt" TIMESTAMP                             DEFAULT NULL,
+        "expiredAt"   TIMESTAMP                             DEFAULT NULL,
+        "createdAt"   TIMESTAMP                             NOT NULL DEFAULT now(),
+        "updatedAt"   TIMESTAMP                             NOT NULL DEFAULT now(),
         CONSTRAINT "PK_reservations" PRIMARY KEY ("id")
       )
     `);
@@ -147,6 +175,12 @@ export class InitialSchema1747180800000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE "items"`);
     await queryRunner.query(`DROP TYPE "public"."items_status_enum"`);
     await queryRunner.query(`DROP TYPE "public"."items_type_enum"`);
+
+    await queryRunner.query(`DROP INDEX "IDX_refresh_tokens_user_id"`);
+    await queryRunner.query(
+      `ALTER TABLE "refresh_tokens" DROP CONSTRAINT "FK_refresh_tokens_user"`,
+    );
+    await queryRunner.query(`DROP TABLE "refresh_tokens"`);
 
     await queryRunner.query(`DROP TABLE "users"`);
     await queryRunner.query(`DROP TYPE "public"."users_role_enum"`);

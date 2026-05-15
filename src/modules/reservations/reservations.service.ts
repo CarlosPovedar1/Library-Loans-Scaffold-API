@@ -33,14 +33,12 @@ export class ReservationsService {
         ? dto.memberId
         : requestingUser.id;
 
-    // Validate target member exists and has role 'member'
     const member = await this.userRepository.findOne({ where: { id: memberId } });
     if (!member) throw new NotFoundException(`User ${memberId} not found`);
     if (member.role !== UserRole.MEMBER) {
       throw new BadRequestException('Only users with role "member" can make reservations');
     }
 
-    // Validate item
     const item = await this.itemRepository.findOne({ where: { id: dto.itemId } });
     if (!item) throw new NotFoundException(`Item ${dto.itemId} not found`);
 
@@ -55,12 +53,10 @@ export class ReservationsService {
     if (item.status === ItemStatus.INACTIVE) {
       throw new BadRequestException('Cannot reserve an inactive item');
     }
-    // Only BORROWED and RESERVED items can be reserved
     if (item.status !== ItemStatus.BORROWED && item.status !== ItemStatus.RESERVED) {
       throw new BadRequestException(`Cannot reserve item with status: ${item.status}`);
     }
 
-    // Reject duplicate active reservation for same member+item
     const existing = await this.reservationRepository.findOne({
       where: [
         { memberId, itemId: dto.itemId, status: ReservationStatus.PENDING },
@@ -77,6 +73,9 @@ export class ReservationsService {
       status: ReservationStatus.PENDING,
       readyAt: null,
       expiresAt: null,
+      completedAt: null,
+      cancelledAt: null,
+      expiredAt: null,
     });
     return this.reservationRepository.save(reservation);
   }
@@ -87,7 +86,6 @@ export class ReservationsService {
       .leftJoinAndSelect('reservation.member', 'member')
       .leftJoinAndSelect('reservation.item', 'item');
 
-    // Members only see their own reservations
     if (requestingUser.role === UserRole.MEMBER) {
       qb.andWhere('reservation.memberId = :memberId', { memberId: requestingUser.id });
     } else if (query.memberId) {
@@ -130,9 +128,9 @@ export class ReservationsService {
     const wasReady = reservation.status === ReservationStatus.READY;
 
     reservation.status = ReservationStatus.CANCELLED;
+    reservation.cancelledAt = new Date();
     await this.reservationRepository.save(reservation);
 
-    // If the cancelled reservation was READY, activate the next one in the FIFO queue
     if (wasReady) {
       await this.activateNextReservation(reservation.item, id);
     }
@@ -152,6 +150,7 @@ export class ReservationsService {
 
     for (const reservation of overdueReady) {
       reservation.status = ReservationStatus.EXPIRED;
+      reservation.expiredAt = new Date();
       await this.reservationRepository.save(reservation);
       await this.activateNextReservation(reservation.item, reservation.id);
     }
