@@ -1,24 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, Min, MinLength } from 'class-validator';
+import { IsEnum, IsString, Matches, MinLength } from 'class-validator';
+import { ItemType } from '../entities/item.entity';
 
 export class CreateItemDto {
+  @ApiProperty({ example: 'BK-0042', description: 'Unique item code, e.g. BK-0042 or EQ-LAB-007' })
+  @IsString()
+  @Matches(/^[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?$/, {
+    message: 'code must be uppercase alphanumeric with optional dashes (e.g. BK-0042)',
+  })
+  code: string;
+
   @ApiProperty({ example: 'Clean Code' })
   @IsString()
   @MinLength(1)
   title: string;
 
-  @ApiProperty({ example: 'Robert C. Martin' })
-  @IsString()
-  @MinLength(2)
-  author: string;
-
-  @ApiProperty({ example: '978-0132350884' })
-  @IsString()
-  @MinLength(10)
-  isbn: string;
-
-  @ApiProperty({ example: 3, minimum: 1 })
-  @IsInt()
-  @Min(1)
-  totalCopies: number;
+  @ApiProperty({ enum: ItemType, example: ItemType.BOOK })
+  @IsEnum(ItemType)
+  type: ItemType;
 }

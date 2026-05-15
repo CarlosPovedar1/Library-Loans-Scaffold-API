@@ -10,15 +10,15 @@ import {
 import { Item } from '@modules/items/entities/item.entity';
 import { User } from '@modules/auth/entities/user.entity';
 
-export enum LoanStatus {
-  ACTIVE = 'active',
-  RETURNED = 'returned',
-  OVERDUE = 'overdue',
-  LOST = 'lost',
+export enum ReservationStatus {
+  PENDING = 'pending',
+  FULFILLED = 'fulfilled',
+  CANCELLED = 'cancelled',
+  EXPIRED = 'expired',
 }
 
-@Entity('loans')
-export class Loan {
+@Entity('reservations')
+export class Reservation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -36,20 +36,14 @@ export class Loan {
   @Column({ name: 'item_id' })
   itemId: string;
 
-  @Column({ type: 'timestamp' })
-  loanedAt: Date;
+  @Column({ type: 'enum', enum: ReservationStatus, default: ReservationStatus.PENDING })
+  status: ReservationStatus;
 
-  @Column({ type: 'timestamp' })
-  dueAt: Date;
-
+  /**
+   * Set when a reservation is FULFILLED — the member has 48 h to take the loan.
+   */
   @Column({ type: 'timestamp', nullable: true, default: null })
-  returnedAt: Date | null;
-
-  @Column({ type: 'enum', enum: LoanStatus, default: LoanStatus.ACTIVE })
-  status: LoanStatus;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  fineAmount: number;
+  expiresAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -13,15 +13,11 @@ export class ItemsService {
   ) {}
 
   async create(dto: CreateItemDto): Promise<Item> {
-    const existing = await this.itemRepository.findOne({ where: { isbn: dto.isbn } });
+    const existing = await this.itemRepository.findOne({ where: { code: dto.code } });
     if (existing) {
-      throw new ConflictException(`ISBN ${dto.isbn} already exists`);
+      throw new ConflictException(`Item code ${dto.code} already exists`);
     }
-
-    const item = this.itemRepository.create({
-      ...dto,
-      availableCopies: dto.totalCopies,
-    });
+    const item = this.itemRepository.create(dto);
     return this.itemRepository.save(item);
   }
 
@@ -37,6 +33,12 @@ export class ItemsService {
 
   async update(id: string, dto: UpdateItemDto): Promise<Item> {
     const item = await this.findOne(id);
+
+    if (dto.code && dto.code !== item.code) {
+      const conflict = await this.itemRepository.findOne({ where: { code: dto.code } });
+      if (conflict) throw new ConflictException(`Item code ${dto.code} already exists`);
+    }
+
     Object.assign(item, dto);
     return this.itemRepository.save(item);
   }

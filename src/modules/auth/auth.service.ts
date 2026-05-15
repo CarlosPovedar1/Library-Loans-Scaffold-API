@@ -6,7 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
@@ -30,7 +30,7 @@ export class AuthService {
     const user = this.userRepository.create({ ...dto, password: hashedPassword });
     const saved = await this.userRepository.save(user);
 
-    return { accessToken: this.signToken(saved.id, saved.email) };
+    return { accessToken: this.signToken(saved.id, saved.email, saved.role) };
   }
 
   async login(dto: LoginDto): Promise<{ accessToken: string }> {
@@ -44,11 +44,11 @@ export class AuthService {
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
-    return { accessToken: this.signToken(user.id, user.email) };
+    return { accessToken: this.signToken(user.id, user.email, user.role) };
   }
 
-  private signToken(userId: string, email: string): string {
-    const payload: JwtPayload = { sub: userId, email };
+  private signToken(userId: string, email: string, role: UserRole): string {
+    const payload: JwtPayload = { sub: userId, email, role };
     return this.jwtService.sign(payload);
   }
 }

@@ -1,39 +1,34 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, IsDateString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { LoanStatus } from '../entities/loan.entity';
 
 export class LoanDetailDto {
-  @ApiProperty({ example: 1 })
-  @IsInt()
-  id: number;
+  @ApiProperty()
+  id: string;
 
-  @ApiProperty({ example: 1, description: 'ID del usuario que toma el préstamo' })
-  @IsInt()
-  borrowerId: number;
+  @ApiProperty()
+  memberId: string;
 
-  @ApiProperty({ example: 1, description: 'ID del ítem prestado' })
-  @IsInt()
-  itemId: number;
+  @ApiProperty()
+  itemId: string;
 
-  @ApiProperty({ example: '2026-05-14T12:00:00.000Z' })
-  @IsDateString()
-  loanDate: string;
+  @ApiProperty()
+  loanedAt: Date;
 
-  @ApiProperty({ example: '2026-06-14T12:00:00.000Z' })
-  @IsDateString()
-  dueDate: string;
+  @ApiProperty()
+  dueAt: Date;
 
-  @ApiProperty({ example: '2026-05-20T10:00:00.000Z', required: false })
-  @IsOptional()
-  @IsDateString()
-  returnedAt?: string;
+  @ApiPropertyOptional()
+  returnedAt: Date | null;
 
-  @ApiProperty({ example: 'active', description: 'estado: active | returned | overdue' })
-  @IsString()
-  status: string;
+  @ApiProperty({ enum: LoanStatus })
+  status: LoanStatus;
 
-  @ApiProperty({ example: '2026-05-14T12:00:00.000Z' })
-  createdAt: string;
+  @ApiProperty()
+  fineAmount: number;
 
-  @ApiProperty({ example: '2026-05-15T12:00:00.000Z' })
-  updatedAt: string;
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty()
+  updatedAt: Date;
 }

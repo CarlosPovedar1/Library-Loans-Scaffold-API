@@ -1,16 +1,16 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsInt, IsOptional } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsArray, IsOptional, IsUUID } from 'class-validator';
 
 export class ItemRelationsDto {
-  @ApiProperty({ type: [Number], example: [1, 2], required: false, description: 'IDs de préstamos relacionados' })
+  @ApiPropertyOptional({ type: [String], description: 'IDs of associated loans' })
   @IsOptional()
   @IsArray()
-  @IsInt({ each: true })
-  loanIds?: number[];
+  @IsUUID('4', { each: true })
+  loanIds?: string[];
 
-  @ApiProperty({ type: [Number], example: [10, 11], required: false, description: 'IDs de categorías o etiquetas' })
+  @ApiPropertyOptional({ type: [String], description: 'IDs of active reservations' })
   @IsOptional()
   @IsArray()
-  @IsInt({ each: true })
-  categoryIds?: number[];
+  @IsUUID('4', { each: true })
+  reservationIds?: string[];
 }
