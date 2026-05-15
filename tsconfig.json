@@ -19,6 +19,7 @@
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
     "paths": {
       "@modules/*": ["./src/modules/*"],
       "@common/*": ["./src/common/*"],
